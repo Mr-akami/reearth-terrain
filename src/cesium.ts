@@ -344,12 +344,20 @@ async function sampleGeoid(
   bounds: GeodeticBounds,
   size: number,
 ): Promise<Float64Array> {
-  const { image } = await openCog(bucket, key);
-  const window = lonLatBoundsToPixelWindow(image, bounds);
+  const { tiff, image: base } = await openCog(bucket, key);
+  // Window in *base-image* pixels; the overview selection below re-maps it.
+  const window = lonLatBoundsToPixelWindow(base, bounds);
   if (window.right <= window.left || window.bottom <= window.top) {
     return new Float64Array(size * size);
   }
-  const rasters = await image.readRasters({
+  // Read via the GeoTIFF-level reader, which picks the lowest-resolution
+  // overview that still resolves the requested `size`×`size` grid. Without
+  // it a coarse tile decodes its whole span from the 8640px base level — a
+  // z0 (half-globe) window is ~4320×4321 px ≈ 75 MB of float32 and OOMs the
+  // 128 MB Worker (Error 1102). The geoid COG carries an overview pyramid
+  // (see scripts/fetch-egm08.sh) so a z0 read now touches only tens of px;
+  // high-zoom tiles fall through to the base level exactly as before.
+  const rasters = await tiff.readRasters({
     window: [window.left, window.top, window.right, window.bottom],
     width: size,
     height: size,
