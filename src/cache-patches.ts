@@ -44,17 +44,14 @@ export const MESH_CACHE_PATCHES: CachePatch[] = [
   // collapsed to 4-vertex facets that poked through the sphere — visible only
   // at low zoom, where a tile spans tens of degrees (the curvature error per
   // tile falls off with the square of the span, dropping below ~0.5 km by z8
-  // and invisible thereafter). So we scope by *zoom*, not geography.
+  // and invisible thereafter). So we scope by *zoom*, not geography: a
+  // full-globe box for z0–7 re-meshes every low-zoom tile while leaving the
+  // millions of high-zoom tiles — which were always fine — untouched.
   //
-  // z0/z1 are deliberately excluded: every z0 (half-globe) / z1 (90°) tile
-  // contains continents, so it always had relief and tessellated fine — it
-  // never showed the flat facet. Regenerating one *does* hit a heavy path:
-  // the geoid COG has no overviews, so a z0 tile decodes a full-resolution
-  // ~half-globe window (~75 MB of float32) and OOMs the 128 MB worker
-  // (Error 1102). Only z2+ tiles can be all-ocean and flat, so the patch
-  // starts there. (If z0/z1 ever need regenerating, sampleGeoid must read a
-  // bounded window first — see cesium.ts.)
-  { id: "curv-lowzoom1", minZoom: 2, maxZoom: 7, bbox: [-180, -90, 180, 90] },
+  // (z0/z1 used to OOM on regeneration because the geoid COG read its whole
+  // half-globe span at full resolution; the COG now carries overviews and
+  // sampleGeoid reads the matching level, so they regenerate cheaply.)
+  { id: "curv-lowzoom1", minZoom: 0, maxZoom: 7, bbox: [-180, -90, 180, 90] },
 ];
 
 /**
