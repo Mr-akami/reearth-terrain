@@ -40,12 +40,13 @@ export interface CachePatch {
  * uses the plain tileset version).
  */
 export const MESH_CACHE_PATCHES: CachePatch[] = [
-  // No active patches. When a fix only touches a small region, prefer a
-  // Cloudflare cache purge + R2 delete for that area over a patch entry.
-  // Reach for a patch when the affected set is large or awkward to purge by
-  // URL — e.g.:
-  //   { id: "curv-nzne1", minZoom: 0, maxZoom: 6, bbox: [150, -55, -150, 0] },
-  // (box wraps the antimeridian: 150°E → 180° → 150°W).
+  // 2026-06: ellipsoid-curvature fix. Flat open-ocean tiles north-east of
+  // New Zealand collapsed to 4-vertex facets that poked through the globe at
+  // low zoom. Changing the cache version for this box rotates the L1/L2/ETag
+  // keys so the tiles regenerate with the curvature-aware mesh — no manual
+  // Cloudflare purge or R2 delete needed. The box wraps the antimeridian
+  // (150°E → 180° → 150°W); low zoom only, where the facets were visible.
+  { id: "curv-nzne1", minZoom: 0, maxZoom: 6, bbox: [150, -55, -150, 0] },
 ];
 
 /**
