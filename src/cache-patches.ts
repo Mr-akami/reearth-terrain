@@ -40,13 +40,16 @@ export interface CachePatch {
  * uses the plain tileset version).
  */
 export const MESH_CACHE_PATCHES: CachePatch[] = [
-  // 2026-06: ellipsoid-curvature fix. Flat open-ocean tiles north-east of
-  // New Zealand collapsed to 4-vertex facets that poked through the globe at
-  // low zoom. Changing the cache version for this box rotates the L1/L2/ETag
-  // keys so the tiles regenerate with the curvature-aware mesh — no manual
-  // Cloudflare purge or R2 delete needed. The box wraps the antimeridian
-  // (150°E → 180° → 150°W); low zoom only, where the facets were visible.
-  { id: "curv-nzne1", minZoom: 0, maxZoom: 6, bbox: [150, -55, -150, 0] },
+  // 2026-06: ellipsoid-curvature fix. Flat ocean tiles across the whole globe
+  // collapsed to 4-vertex facets that poked through the sphere — visible only
+  // at low zoom, where a tile spans tens of degrees (the curvature error per
+  // tile falls off with the square of the span, dropping below ~0.5 km by z8
+  // and invisible thereafter). So we scope by *zoom*, not geography: a
+  // full-globe box for z0–7 re-meshes every low-zoom tile while leaving the
+  // millions of high-zoom tiles — which were always fine — untouched.
+  // Rotating the cache version regenerates them with the curvature-aware mesh
+  // with no manual Cloudflare purge or R2 delete.
+  { id: "curv-lowzoom1", minZoom: 0, maxZoom: 7, bbox: [-180, -90, 180, 90] },
 ];
 
 /**
