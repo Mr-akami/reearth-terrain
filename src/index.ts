@@ -20,6 +20,7 @@ import {
   type Tileset,
 } from "./tilesets.js";
 import { cachedTile, bodyEtag, matchesIfNoneMatch } from "./cache.js";
+import { meshCacheVersion } from "./cache-patches.js";
 import { runCleanup } from "./cleanup.js";
 import {
   MESH_GRID_SIZE,
@@ -516,7 +517,11 @@ async function serveMesh(
     env.R2,
     {
       tileset: tileset.name,
-      version: resolveTilesetVersion(tileset),
+      // Region-scoped overrides let us invalidate just the tiles a fix
+      // actually changed (e.g. the curvature re-mesh NE of New Zealand)
+      // instead of bumping the whole-globe tileset version. Tiles outside
+      // every patch get the plain version and keep their cached bytes.
+      version: meshCacheVersion(resolveTilesetVersion(tileset), z, x, y),
       encoding,
       dataType,
       z,
