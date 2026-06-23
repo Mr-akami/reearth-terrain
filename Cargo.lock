@@ -179,9 +179,9 @@ checksum = "e0c5ccf5294c6ccd63a74f1565028353830a9c2f5eb0c682c355c471726a6e3f"
 
 [[package]]
 name = "quantized-mesh"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4a5e792cb6e9b00c3c689db2fa33a9b50e816821bfd5f3bf5e5577bbf3b6011"
+checksum = "b872ecdd04e735c9b248c70ed583f0bb23d0a06479930fb789771736733f59a3"
 dependencies = [
  "flate2",
  "serde",
@@ -207,7 +207,6 @@ dependencies = [
 name = "reearth-terrain-wasm"
 version = "0.1.1"
 dependencies = [
- "image",
  "terrain-codec",
  "wasm-bindgen",
 ]
@@ -280,9 +279,9 @@ dependencies = [
 
 [[package]]
 name = "terrain-codec"
-version = "0.2.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca2407a5a54cd928695df91d4f76ec023e639ebf5d37dd63928d7eaeef8bc222"
+checksum = "42a37312d37db1a720d9dc5266cdfaeca51967b5608b332cdf33cb2b7690b207"
 dependencies = [
  "image",
  "martini",
