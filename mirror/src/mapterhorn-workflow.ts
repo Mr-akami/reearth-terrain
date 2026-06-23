@@ -215,6 +215,17 @@ export class MapterhornMirrorWorkflow extends WorkflowEntrypoint<Env, Mapterhorn
       await mpu.complete(parts);
     });
 
+    // `complete` returning is not proof the object is durably readable.
+    // HEAD it before the pointer advances so a missing / short body fails
+    // the run here instead of producing a pointer to a phantom archive.
+    await step.do("verify-object", async () => {
+      const obj = await this.env.R2.head(init.key);
+      if (!obj) throw new Error(`verify-object: ${init.key} missing after complete`);
+      if (obj.size !== init.size) {
+        throw new Error(`verify-object: ${init.key} size ${obj.size} != expected ${init.size}`);
+      }
+    });
+
     // Per-archive pointer file: `{archive}.latest.json` so multiple
     // archives (planet + regionals) coexist under the same prefix.
     await step.do("write-latest", async () => {
@@ -249,7 +260,10 @@ export class MapterhornMirrorWorkflow extends WorkflowEntrypoint<Env, Mapterhorn
       versions.sort().reverse();
       const toDelete = versions
         .slice(retain)
-        .map((v) => `${this.env.MAPTERHORN_MIRROR_PREFIX}/${v}/${init.archive}`);
+        .map((v) => `${this.env.MAPTERHORN_MIRROR_PREFIX}/${v}/${init.archive}`)
+        // Never delete the version we just mirrored — it is the one the
+        // pointer now serves, regardless of how the list happens to sort.
+        .filter((k) => k !== init.key);
       if (toDelete.length > 0) await this.env.R2.delete(toDelete);
     });
 
