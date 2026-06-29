@@ -891,7 +891,10 @@ view.addLayer({
     elevationDecoder: MAPBOX_ELEVATION_DECODER(),
     maxZoom: <span class="kw">15</span>,
   },
-});</pre>
+});
+<span class="cm">// Navara has no attribution UI — display these credits yourself:</span>
+<span class="cm">// Re:Earth Terrain · Mapterhorn (CC BY 4.0)</span>
+<span class="cm">// + Protomaps · © OpenStreetMap contributors (ODbL) if the water mask is on</span></pre>
           </div>
         </div>
 
@@ -914,7 +917,10 @@ view.addLayer({
     elevationDecoder: TERRARIUM_ELEVATION_DECODER(),
     maxZoom: <span class="kw">15</span>,
   },
-});</pre>
+});
+<span class="cm">// Navara has no attribution UI — display these credits yourself:</span>
+<span class="cm">// Re:Earth Terrain · Mapterhorn (CC BY 4.0)</span>
+<span class="cm">// + Protomaps · © OpenStreetMap contributors (ODbL) if the water mask is on</span></pre>
           </div>
         </div>
 
@@ -975,6 +981,27 @@ map.addSource(<span class="str">"terrain"</span>, {
   encoding: <span class="str">"terrarium"</span>,
 });
 map.setTerrain({ source: <span class="str">"terrain"</span> });</pre>
+          </div>
+        </div>
+
+        <div class="code-col">
+          <div class="code-col-eyebrow">deck.gl · Terrarium</div>
+          <h3 class="code-col-h">TerrainLayer</h3>
+          <p class="code-col-d">
+            deck.gl's <code>TerrainLayer</code> reads Terrarium-encoded
+            tiles directly — hand it the decoder constants and it meshes
+            the DEM on the GPU.
+          </p>
+          <div class="code-block">
+            <button class="copy-btn" data-copy="deckgl">Copy</button>
+<pre style="margin:0;font-family:inherit"><span class="cm">// deck.gl — TerrainLayer (Terrarium)</span>
+<span class="kw">new</span> TerrainLayer({
+  elevationData: <span class="str">"https://terrain.reearth.land/terrarium/elevation/{z}/{x}/{y}.png"</span>,
+  elevationDecoder: { rScaler: <span class="kw">256</span>, gScaler: <span class="kw">1</span>, bScaler: <span class="kw">1 / 256</span>, offset: <span class="kw">-32768</span> },
+});
+<span class="cm">// deck.gl has no attribution UI — display these credits yourself:</span>
+<span class="cm">// Re:Earth Terrain · Mapterhorn (CC BY 4.0)</span>
+<span class="cm">// + Protomaps · © OpenStreetMap contributors (ODbL) if the water mask is on</span></pre>
           </div>
         </div>
       </div>
@@ -1398,7 +1425,10 @@ map.setTerrain({ source: "terrain" });`,
     elevationDecoder: MAPBOX_ELEVATION_DECODER(),
     maxZoom: 15,
   },
-});`,
+});
+// Navara has no attribution UI — display these credits yourself:
+// Re:Earth Terrain · Mapterhorn (CC BY 4.0)
+// + Protomaps · © OpenStreetMap contributors (ODbL) if the water mask is on`,
         "navara-terrarium": `view.addLayer({
   type: "terrain",
   data: { url: "https://terrain.reearth.land/terrarium/elevation/{z}/{x}/{y}.png" },
@@ -1406,7 +1436,17 @@ map.setTerrain({ source: "terrain" });`,
     elevationDecoder: TERRARIUM_ELEVATION_DECODER(),
     maxZoom: 15,
   },
-});`,
+});
+// Navara has no attribution UI — display these credits yourself:
+// Re:Earth Terrain · Mapterhorn (CC BY 4.0)
+// + Protomaps · © OpenStreetMap contributors (ODbL) if the water mask is on`,
+        deckgl: `new TerrainLayer({
+  elevationData: "https://terrain.reearth.land/terrarium/elevation/{z}/{x}/{y}.png",
+  elevationDecoder: { rScaler: 256, gScaler: 1, bScaler: 1 / 256, offset: -32768 },
+});
+// deck.gl has no attribution UI — display these credits yourself:
+// Re:Earth Terrain · Mapterhorn (CC BY 4.0)
+// + Protomaps · © OpenStreetMap contributors (ODbL) if the water mask is on`,
       };
       document.querySelectorAll(".copy-btn").forEach((b) => {
         b.addEventListener("click", async () => {
