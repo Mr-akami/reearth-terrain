@@ -476,22 +476,18 @@
       // scene only (silently no-op on MapLibre). Undocumented and
       // for ad-hoc demos; depends on the MLIT-operated PLATEAU API,
       // which has no SLA.
-      // ?og reproduces the exact camera pose used to shoot the social
-      // share image (public/og.jpg): Navara + EOX Sentinel-2, static
-      // (no orbit), UI + attribution hidden. Screenshot it at 1200×630
-      // (the OG dimensions) and burn the CC BY credit into the final
-      // asset afterwards. See OG_CAMERA below for the recorded pose.
       const QUERY = new URLSearchParams(location.search);
       const DEMO = QUERY.has("demo");
       const PLATEAU = QUERY.has("plateau");
-      const OG = QUERY.has("og");
 
-      // Recorded OG capture pose. Mt Fuji framed big and close with the
+      // Demo orbit framing for Navara: Mt Fuji big and close with the
       // peak ~40% down the frame and clear of the landing-page logo
-      // (upper-left). distance = how big the mountain is; height =
-      // how low the peak sits (raises the rig straight up, same look
-      // direction). Tweak those two to recompose, then re-shoot ?og.
-      const OG_CAMERA = {
+      // (upper-left). The orbit spins the heading around this pose.
+      // distance = how big the mountain is; height = how low the peak
+      // sits (raises the rig straight up, same look direction). This is
+      // also the framing used to shoot the social share image
+      // (public/og.jpg) — pause the orbit at heading 0 to recapture it.
+      const DEMO_VIEW = {
         lng: 138.712,
         lat: 35.362,
         height: 2700,
@@ -499,12 +495,6 @@
         pitch: -44,
         distance: 8200,
       };
-      // ?og forces the renderer + basemap the OG was shot with, so the
-      // pose reproduces regardless of any other UI state.
-      if (OG) {
-        document.getElementById("renderer").value = "navara";
-        document.getElementById("basemap").value = "eox";
-      }
 
       // Visibility gating. The landing page sends
       // { type: "reearth-terrain:visibility", visible: boolean }
@@ -513,7 +503,7 @@
       // Cesium render loop entirely — no rAF tax, no GPU work.
       let demoVisible = true;
       let demoRafId = null;
-      if (QUERY.has("nopanel") || QUERY.get("ui") === "0" || DEMO || OG) {
+      if (QUERY.has("nopanel") || QUERY.get("ui") === "0" || DEMO) {
         document.getElementById("ui").classList.add("hidden");
       }
       if (PLATEAU) {
@@ -857,10 +847,10 @@
         });
         navaraHillshadeLayerId = hs?.id ?? null;
 
-        // Fly to initial location — ?og uses the recorded OG pose.
+        // Fly to initial location — demo uses the tuned orbit framing.
         navaraView.setCamera(
-          OG
-            ? OG_CAMERA
+          DEMO
+            ? DEMO_VIEW
             : {
                 lng: lastView.lon,
                 lat: lastView.lat,
@@ -882,9 +872,6 @@
           '<a href="https://earth-info.nga.mil/">EGM2008 (NGA)</a>',
           basemap().attributionHtml
         ]);
-        // ?og hides attribution for a clean capture; the CC BY credit
-        // is burned into the final og.jpg separately.
-        if (OG) navaraAttribEl.style.display = "none";
         document.getElementById("navara").appendChild(navaraAttribEl);
       }
 
@@ -895,7 +882,7 @@
         try {
           if (renderer === "navara") {
             await buildNavara();
-            if (DEMO || OG) lockCamera();
+            if (DEMO) lockCamera();
             notifyOnTilesLoaded("navara");
             return;
           }
