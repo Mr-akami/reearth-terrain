@@ -397,8 +397,7 @@
         <div class="field">
           <span class="field-label">Basemap</span>
           <select id="basemap">
-            <option value="esri" selected>Esri Imagery</option>
-            <option value="eox">EOX Sentinel-2</option>
+            <option value="eox" selected>EOX Sentinel-2</option>
             <option value="osm">OpenStreetMap</option>
           </select>
         </div>
@@ -477,9 +476,35 @@
       // scene only (silently no-op on MapLibre). Undocumented and
       // for ad-hoc demos; depends on the MLIT-operated PLATEAU API,
       // which has no SLA.
+      // ?og reproduces the exact camera pose used to shoot the social
+      // share image (public/og.jpg): Navara + EOX Sentinel-2, static
+      // (no orbit), UI + attribution hidden. Screenshot it at 1200×630
+      // (the OG dimensions) and burn the CC BY credit into the final
+      // asset afterwards. See OG_CAMERA below for the recorded pose.
       const QUERY = new URLSearchParams(location.search);
       const DEMO = QUERY.has("demo");
       const PLATEAU = QUERY.has("plateau");
+      const OG = QUERY.has("og");
+
+      // Recorded OG capture pose. Mt Fuji framed big and close with the
+      // peak ~40% down the frame and clear of the landing-page logo
+      // (upper-left). distance = how big the mountain is; height =
+      // how low the peak sits (raises the rig straight up, same look
+      // direction). Tweak those two to recompose, then re-shoot ?og.
+      const OG_CAMERA = {
+        lng: 138.712,
+        lat: 35.362,
+        height: 2700,
+        heading: 0,
+        pitch: -44,
+        distance: 8200,
+      };
+      // ?og forces the renderer + basemap the OG was shot with, so the
+      // pose reproduces regardless of any other UI state.
+      if (OG) {
+        document.getElementById("renderer").value = "navara";
+        document.getElementById("basemap").value = "eox";
+      }
 
       // Visibility gating. The landing page sends
       // { type: "reearth-terrain:visibility", visible: boolean }
@@ -488,7 +513,7 @@
       // Cesium render loop entirely — no rAF tax, no GPU work.
       let demoVisible = true;
       let demoRafId = null;
-      if (QUERY.has("nopanel") || QUERY.get("ui") === "0" || DEMO) {
+      if (QUERY.has("nopanel") || QUERY.get("ui") === "0" || DEMO || OG) {
         document.getElementById("ui").classList.add("hidden");
       }
       if (PLATEAU) {
@@ -536,19 +561,8 @@
           credit:
             "Sentinel-2 cloudless 2020 by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2020)",
         },
-        esri: {
-          // ArcGIS REST tile path is /tile/{level}/{row}/{col} — match
-          // that ordering when substituting MapLibre's placeholders.
-          url:
-            "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-          maxzoom: 19,
-          attributionHtml:
-            'Tiles © <a href="https://www.esri.com/">Esri</a> — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
-          credit:
-            "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
-        },
       };
-      const basemap = () => BASEMAPS[params().basemap] || BASEMAPS.esri;
+      const basemap = () => BASEMAPS[params().basemap] || BASEMAPS.eox;
 
       const initialViews = DEMO
         ? { lon: 138.7274, lat: 35.36, range: 18000 }
@@ -843,15 +857,19 @@
         });
         navaraHillshadeLayerId = hs?.id ?? null;
 
-        // Fly to initial location
-        navaraView.setCamera({
-          lng: lastView.lon,
-          lat: lastView.lat,
-          height: 0,
-          heading: 0,
-          pitch: -40,
-          distance: lastView.range * 0.7,
-        });
+        // Fly to initial location — ?og uses the recorded OG pose.
+        navaraView.setCamera(
+          OG
+            ? OG_CAMERA
+            : {
+                lng: lastView.lon,
+                lat: lastView.lat,
+                height: 0,
+                heading: 0,
+                pitch: -40,
+                distance: lastView.range * 0.7,
+              },
+        );
 
         navaraView.atmosphere.setElevationAt(
           { lng: initialViews.lon, lat: initialViews.lat },
@@ -864,6 +882,9 @@
           '<a href="https://earth-info.nga.mil/">EGM2008 (NGA)</a>',
           basemap().attributionHtml
         ]);
+        // ?og hides attribution for a clean capture; the CC BY credit
+        // is burned into the final og.jpg separately.
+        if (OG) navaraAttribEl.style.display = "none";
         document.getElementById("navara").appendChild(navaraAttribEl);
       }
 
@@ -874,7 +895,7 @@
         try {
           if (renderer === "navara") {
             await buildNavara();
-            if (DEMO) lockCamera();
+            if (DEMO || OG) lockCamera();
             notifyOnTilesLoaded("navara");
             return;
           }
