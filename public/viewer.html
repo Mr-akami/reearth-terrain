@@ -480,16 +480,15 @@
       const DEMO = QUERY.has("demo");
       const PLATEAU = QUERY.has("plateau");
 
-      // Demo orbit framing for Navara: Mt Fuji big and close with the
-      // peak ~40% down the frame and clear of the landing-page logo
-      // (upper-left). The orbit spins the heading around this pose.
-      // distance = how big the mountain is; height = how low the peak
-      // sits (raises the rig straight up, same look direction). This is
-      // also the framing used to shoot the social share image
-      // (public/og.jpg) — pause the orbit at heading 0 to recapture it.
+      // Demo orbit framing for Navara. lng/lat MUST be the Mt Fuji
+      // summit: the orbit spins the heading around this point, so an
+      // off-summit target makes the mountain swing around lopsidedly.
+      // distance = how big the mountain is; pitch = the look-down
+      // angle; height lifts the look-at up the summit column to seat
+      // the peak lower in frame without breaking the pivot.
       const DEMO_VIEW = {
-        lng: 138.712,
-        lat: 35.362,
+        lng: 138.7274,
+        lat: 35.36,
         height: 2700,
         heading: 0,
         pitch: -44,
