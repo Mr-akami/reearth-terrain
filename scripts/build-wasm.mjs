@@ -28,7 +28,19 @@ for (const c of crates) {
   console.log(`[build-wasm] building ${c.name} (${mode})`);
   execSync(
     `wasm-pack build "${crateDir}" --target bundler --out-dir "${outDir}" --out-name ${c.snake} ${mode}`,
-    { stdio: "inherit" },
+    {
+      stdio: "inherit",
+      // Enable WebAssembly SIMD (simd128) so terrain-codec's `wide`-based
+      // kernels compile to real vector ops instead of the scalar fallback.
+      // Scope the flag to the wasm target only — a bare RUSTFLAGS would also
+      // reach host-compiled proc-macros (serde/wasm-bindgen derives), where
+      // rustc rejects the wasm-only `+simd128` feature. workerd/V8 support
+      // simd128, so the deployed runtime can execute the emitted ops.
+      env: {
+        ...process.env,
+        CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS: "-C target-feature=+simd128",
+      },
+    },
   );
 
   patchGlue(outDir, c.snake);
@@ -57,6 +69,9 @@ function optimizeWasm(outDir, snake) {
       "--enable-multivalue",
       "--enable-mutable-globals",
       "--enable-reference-types",
+      // Required now that the wasm is built with +simd128 — without this
+      // wasm-opt rejects the SIMD ops ("all used features should be allowed").
+      "--enable-simd",
       wasm,
       "-o",
       wasm,
