@@ -127,8 +127,19 @@ curl -s "http://localhost:8787/heights.json?points=138.73,35.37&scenario=plan-a"
 
 `REMOTE=1` on the same script targets the production bucket.
 
-Tip: `.dev.vars` with `DISABLE_CACHE=1` skips both cache layers, which is what
-you want while iterating on a delta.
+### Iterating quickly
+
+The manifest is cached in-isolate for 60 s by default, so a freshly published
+edit can take up to a minute to appear. For an authoring loop that reads as a
+broken tool. Two knobs, both for `.dev.vars`:
+
+```
+CUSTOM_DEM_INDEX_TTL_MS=0   # re-read index.json on every request
+DISABLE_CACHE=1             # also skip both tile cache layers (implies the above)
+```
+
+In production leave both unset: the manifest read is one R2 GET per isolate per
+minute, and the tile caches are what make the service cheap.
 
 ## Limits
 

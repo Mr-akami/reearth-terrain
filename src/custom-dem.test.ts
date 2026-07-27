@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import {
   customCacheVariant,
+  indexTtlMs,
   featherWeight,
   isValidScenario,
   loadCustomDem,
@@ -166,6 +167,20 @@ describe("isValidScenario", () => {
     expect(isValidScenario("../sources")).toBe(false);
     expect(isValidScenario("a/b")).toBe(false);
     expect(isValidScenario("")).toBe(false);
+  });
+});
+
+describe("indexTtlMs", () => {
+  it("defaults to a minute, and 0 disables so an edit shows on the next request", () => {
+    expect(indexTtlMs({})).toBe(60_000);
+    expect(indexTtlMs({ CUSTOM_DEM_INDEX_TTL_MS: "0" })).toBe(0);
+    expect(indexTtlMs({ CUSTOM_DEM_INDEX_TTL_MS: "5000" })).toBe(5000);
+    // DISABLE_CACHE already means "no stale anything".
+    expect(indexTtlMs({ DISABLE_CACHE: "1" })).toBe(0);
+    expect(indexTtlMs({ DISABLE_CACHE: "true", CUSTOM_DEM_INDEX_TTL_MS: "60000" })).toBe(0);
+    // Garbage falls back rather than disabling the cache by accident.
+    expect(indexTtlMs({ CUSTOM_DEM_INDEX_TTL_MS: "abc" })).toBe(60_000);
+    expect(indexTtlMs({ CUSTOM_DEM_INDEX_TTL_MS: "-5" })).toBe(60_000);
   });
 });
 

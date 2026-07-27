@@ -25,8 +25,14 @@ import { lonLatBoundsToPixelWindow, type LonLatBounds } from "./tile.js";
 /** R2 key prefix for custom DEM scenarios. Sits alongside sources/, cache/, mirror/. */
 const CUSTOM_PREFIX = "custom";
 
-/** How long a parsed manifest is trusted inside one isolate. */
-const INDEX_TTL_MS = 60_000;
+/**
+ * How long a parsed manifest is trusted inside one isolate, by default.
+ *
+ * The cache exists to avoid an R2 GET per tile request. It also puts a floor on
+ * how quickly an edit becomes visible, so an authoring loop wants it short or
+ * off — see `loadCustomDem`'s `ttlMs`.
+ */
+const DEFAULT_INDEX_TTL_MS = 60_000;
 
 /**
  * Upper bound on how many source pixels we decode per COG per tile. The
@@ -45,6 +51,27 @@ const SCENARIO_RE = /^[A-Za-z0-9._-]{1,64}$/;
 
 export function isValidScenario(name: string): boolean {
   return SCENARIO_RE.test(name);
+}
+
+/**
+ * Resolve the manifest cache TTL for this request.
+ *
+ * `0` disables the cache, so an edit published to R2 is visible on the very
+ * next tile request. `.dev.vars` sets that locally: the authoring loop is
+ * write-then-look, and a minute of staleness reads as a broken tool.
+ * `DISABLE_CACHE` implies it too — that flag already means "show me what the
+ * code and data produce right now".
+ */
+export function indexTtlMs(env: {
+  CUSTOM_DEM_INDEX_TTL_MS?: string;
+  DISABLE_CACHE?: string;
+}): number {
+  const disable = env.DISABLE_CACHE;
+  if (disable === "1" || disable?.toLowerCase() === "true") return 0;
+  const raw = env.CUSTOM_DEM_INDEX_TTL_MS;
+  if (raw === undefined || raw === "") return DEFAULT_INDEX_TTL_MS;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_INDEX_TTL_MS;
 }
 
 /**
@@ -104,14 +131,15 @@ export interface ResolvedCustomDem {
 export async function loadCustomDem(
   bucket: R2Bucket | undefined,
   scenario: string | null,
+  ttlMs = DEFAULT_INDEX_TTL_MS,
 ): Promise<ResolvedCustomDem | null> {
   if (!bucket || !scenario || !isValidScenario(scenario)) return null;
 
-  const cached = readCache(bucket, scenario);
+  const cached = ttlMs > 0 ? readCache(bucket, scenario, ttlMs) : undefined;
   if (cached !== undefined) return cached;
 
   const resolved = await fetchManifest(bucket, scenario);
-  writeCache(bucket, scenario, resolved);
+  if (ttlMs > 0) writeCache(bucket, scenario, resolved);
   return resolved;
 }
 
@@ -172,10 +200,14 @@ interface CacheEntry {
 const manifestCache = new WeakMap<R2Bucket, Map<string, CacheEntry>>();
 
 /** `undefined` = not cached; `null` = cached "no custom DEM". */
-function readCache(bucket: R2Bucket, scenario: string): ResolvedCustomDem | null | undefined {
+function readCache(
+  bucket: R2Bucket,
+  scenario: string,
+  ttlMs: number,
+): ResolvedCustomDem | null | undefined {
   const hit = manifestCache.get(bucket)?.get(scenario);
   if (!hit) return undefined;
-  if (Date.now() - hit.at > INDEX_TTL_MS) return undefined;
+  if (Date.now() - hit.at > ttlMs) return undefined;
   return hit.value;
 }
 
