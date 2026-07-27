@@ -5,7 +5,8 @@
 
 import type { DemSource } from "./dem.js";
 import { openCog } from "./cog.js";
-import { readTileFromImage } from "./tile.js";
+import { readTileFromImage, tileToLonLatBounds } from "./tile.js";
+import { sampleCustomDelta, type ResolvedCustomDem } from "./custom-dem.js";
 import type { Tileset } from "./tilesets.js";
 
 export type DataType = "geoid" | "elevation" | "ellipsoid";
@@ -23,6 +24,11 @@ export interface TileSamples {
  * - `elevation`: orthometric height (meters above geoid) from the DEM source
  * - `geoid`: geoid undulation (meters) from the tileset's geoid COG
  * - `ellipsoid`: elevation + geoid, i.e. height above the WGS84 ellipsoid
+ *
+ * `opts.custom` overlays an authored elevation delta (see `custom-dem.ts`).
+ * It applies to `ellipsoid` only: that is the grid clients actually render,
+ * and the single-source `elevation` / `geoid` endpoints are introspection
+ * views of the upstream data that should stay unedited.
  */
 export async function readTileSamples(
   tileset: Tileset,
@@ -32,6 +38,7 @@ export async function readTileSamples(
   y: number,
   env: { R2: R2Bucket },
   outSize = 512,
+  opts: { custom?: ResolvedCustomDem | null } = {},
 ): Promise<TileSamples> {
   if (dataType === "elevation") {
     return await readDem(tileset.dem, z, x, y, outSize);
@@ -52,6 +59,22 @@ export async function readTileSamples(
   for (let i = 0; i < elev.values.length; i++) {
     out[i] = elev.values[i]! + geoid.values[i]!;
   }
+
+  // Custom DEM goes last: `out` is now in ellipsoid heights and the delta is
+  // datum-free, so this is the one place it can be added without any geoid
+  // bookkeeping.
+  if (opts.custom) {
+    const delta = await sampleCustomDelta(
+      env.R2,
+      opts.custom,
+      tileToLonLatBounds(z, x, y),
+      elev.width,
+    );
+    if (delta) {
+      for (let i = 0; i < out.length; i++) out[i] = out[i]! + delta[i]!;
+    }
+  }
+
   return { width: elev.width, height: elev.height, values: out };
 }
 

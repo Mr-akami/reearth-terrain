@@ -20,6 +20,7 @@ import {
   type Tileset,
 } from "./tilesets.js";
 import { cachedTile, bodyEtag, matchesIfNoneMatch } from "./cache.js";
+import { loadCustomDem, isValidScenario, customCacheVariant } from "./custom-dem.js";
 import { meshCacheVersion } from "./cache-patches.js";
 import { runCleanup } from "./cleanup.js";
 import {
@@ -210,13 +211,13 @@ async function handle(req: Request, env: Env, ctx: ExecutionContext): Promise<Re
       if (m) {
         const tileset = resolveTileset(m[1], env);
         if (!tileset) return notFound(`unknown tileset: ${m[1]}`);
-        return await serveTile(req, ctx, tileset, m[2] as Encoding, m[3] as DataType, Number(m[4]), Number(m[5]), Number(m[6]), m[7] as Format, env);
+        return await serveTile(req, ctx, tileset, m[2] as Encoding, m[3] as DataType, Number(m[4]), Number(m[5]), Number(m[6]), m[7] as Format, url.searchParams, env);
       }
       m = TILE_DEFAULT.exec(url.pathname);
       if (m) {
         const tileset = resolveTileset(undefined, env);
         if (!tileset) return notFound("default tileset not configured");
-        return await serveTile(req, ctx, tileset, m[1] as Encoding, m[2] as DataType, Number(m[3]), Number(m[4]), Number(m[5]), m[6] as Format, env);
+        return await serveTile(req, ctx, tileset, m[1] as Encoding, m[2] as DataType, Number(m[3]), Number(m[4]), Number(m[5]), m[6] as Format, url.searchParams, env);
       }
 
       // TileJSON metadata.
@@ -373,8 +374,18 @@ async function serveTile(
   x: number,
   y: number,
   format: Format,
+  query: URLSearchParams,
   env: Env,
 ): Promise<Response> {
+  // Resolve the custom-DEM manifest up-front so its revision can be folded
+  // into the cache key BEFORE the lookup — same shape as the watermask
+  // version on the mesh path.
+  const scenario = query.get("scenario");
+  if (scenario && !isValidScenario(scenario)) {
+    return json({ error: "invalid ?scenario= (allowed: A-Z a-z 0-9 . _ -, max 64)" }, { status: 400 });
+  }
+  const custom = dataType === "ellipsoid" ? await loadCustomDem(env.R2, scenario) : null;
+
   return cachedTile(
     req,
     ctx,
@@ -382,7 +393,7 @@ async function serveTile(
     {
       tileset: tileset.name,
       version: resolveTilesetVersion(tileset),
-      encoding,
+      encoding: `${encoding}${customCacheVariant(scenario, custom)}`,
       dataType,
       z,
       x,
@@ -391,7 +402,7 @@ async function serveTile(
       freshness: demFreshness(tileset, dataType, z, x, y),
     },
     async () => {
-      const samples = await readTileSamples(tileset, dataType, z, x, y, env);
+      const samples = await readTileSamples(tileset, dataType, z, x, y, env, 512, { custom });
       const rgb =
         encoding === "terrarium"
           ? encode_terrarium(samples.values, samples.width, samples.height)
@@ -504,12 +515,20 @@ async function serveMesh(
   // it when the underlying byte ranges actually change.
   const watermask = includeWaterMask ? await resolveWatermask(tileset, bounds, env) : null;
 
+  const scenario = query.get("scenario");
+  if (scenario && !isValidScenario(scenario)) {
+    return json({ error: "invalid ?scenario= (allowed: A-Z a-z 0-9 . _ -, max 64)" }, { status: 400 });
+  }
+  const custom = dataType === "ellipsoid" ? await loadCustomDem(env.R2, scenario) : null;
+
   const variant: string[] = [];
   if (includeNormals) variant.push("n");
   if (includeWaterMask) {
     variant.push(watermask ? `w-${watermask.version}` : "w-fallback");
   }
-  const encoding = variant.length ? `cesium-mesh+${variant.join("+")}` : "cesium-mesh";
+  const encoding =
+    (variant.length ? `cesium-mesh+${variant.join("+")}` : "cesium-mesh")
+    + customCacheVariant(scenario, custom);
 
   return cachedTile(
     req,
@@ -547,7 +566,7 @@ async function serveMesh(
       // path, which is visibly discontinuous at seams).
       const haloCells = includeNormals ? 1 : 0;
       const [{ elevations, dem, elevationsWithHalo }, waterFromProtomaps] = await Promise.all([
-        sampleGrid(tileset, bounds, MESH_GRID_SIZE, dataType, env, { haloCells }),
+        sampleGrid(tileset, bounds, MESH_GRID_SIZE, dataType, env, { haloCells, custom }),
         watermask ? watermask.provider.buildMask(bounds).catch(() => null) : Promise.resolve(null),
       ]);
 
