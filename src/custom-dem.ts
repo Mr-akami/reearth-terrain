@@ -220,6 +220,91 @@ export async function sampleCustomDelta(
   return contributed ? out : null;
 }
 
+/**
+ * Sample the summed delta at arbitrary points. Sister to
+ * `sampleCustomDelta`, matching how `sample.ts` mirrors `sampleGrid`.
+ *
+ * Returns one value per point (0 where nothing applies), or null when no
+ * entry covers any point at all.
+ */
+export async function sampleCustomDeltaAtPoints(
+  bucket: R2Bucket,
+  custom: ResolvedCustomDem,
+  points: { lon: number; lat: number }[],
+): Promise<Float64Array | null> {
+  if (points.length === 0) return null;
+
+  const out = new Float64Array(points.length);
+  let contributed = false;
+
+  for (const entry of custom.entries) {
+    const [ew, es, ee, en] = entry.bounds;
+    const inside = points
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => p.lon >= ew && p.lon <= ee && p.lat >= es && p.lat <= en);
+    if (inside.length === 0) continue;
+
+    let image: Awaited<ReturnType<typeof openCog>>["image"];
+    try {
+      ({ image } = await openCog(bucket, entry.key));
+    } catch (err) {
+      console.log(`custom-dem: cannot open ${entry.key}: ${String(err)}`);
+      continue;
+    }
+
+    const bbox = image.getBoundingBox();
+    const imgWest = Math.min(bbox[0]!, bbox[2]!);
+    const imgEast = Math.max(bbox[0]!, bbox[2]!);
+    const imgSouth = Math.min(bbox[1]!, bbox[3]!);
+    const imgNorth = Math.max(bbox[1]!, bbox[3]!);
+
+    const origin = image.getOrigin();
+    const res = image.getResolution();
+    const width = image.getWidth();
+    const height = image.getHeight();
+    const nodata = image.getGDALNoData();
+    const feather = entry.featherMeters ?? 0;
+
+    await Promise.all(
+      inside.map(async ({ p, i }) => {
+        const w = featherWeight(p.lon, p.lat, imgWest, imgSouth, imgEast, imgNorth, feather);
+        if (w <= 0) return;
+        const px = (p.lon - origin[0]!) / res[0]!;
+        const py = (p.lat - origin[1]!) / res[1]!;
+        if (px < 0 || px > width || py < 0 || py > height) return;
+
+        // Read the 2x2 neighbourhood only — same approach `sample.ts` uses
+        // for the geoid, and geotiff.js caches decoded tiles across calls.
+        const x0 = Math.max(0, Math.min(width - 2, Math.floor(px)));
+        const y0 = Math.max(0, Math.min(height - 2, Math.floor(py)));
+        let band: ArrayLike<number>;
+        try {
+          const rasters = await image.readRasters({
+            window: [x0, y0, x0 + 2, y0 + 2],
+            width: 2,
+            height: 2,
+            interleave: false,
+            samples: [0],
+          });
+          const first = Array.isArray(rasters) ? rasters[0] : rasters;
+          if (!first) return;
+          band = first as ArrayLike<number>;
+        } catch (err) {
+          console.log(`custom-dem: point read failed ${entry.key}: ${String(err)}`);
+          return;
+        }
+
+        const raw = bilinear(band, 2, 2, px - x0, py - y0, nodata);
+        if (raw === 0) return;
+        out[i] = out[i]! + raw * w;
+        contributed = true;
+      }),
+    );
+  }
+
+  return contributed ? out : null;
+}
+
 /** True when two lon/lat boxes share area. */
 function intersects(b: [number, number, number, number], t: LonLatBounds): boolean {
   const [west, south, east, north] = b;

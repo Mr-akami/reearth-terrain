@@ -26,6 +26,7 @@ Both grid paths are covered:
 - `cesium-mesh` (quantized-mesh, geodetic TMS) — including the normals halo, so
   lighting stays continuous across an edit boundary
 - `terrarium` / `mapbox` (Terrain-RGB, Web Mercator XYZ)
+- `/heights.json` point sampling
 
 Only `data_type=ellipsoid` is edited. `elevation` and `geoid` stay as pure views
 of the upstream data.
@@ -69,7 +70,12 @@ already carries a zero-valued margin around the edit.
 ```
 GET /cesium-mesh/ellipsoid/{z}/{x}/{y}.terrain?scenario=plan-a
 GET /terrarium/ellipsoid/{z}/{x}/{y}.png?scenario=plan-a
+GET /heights.json?points=138.73,35.37&scenario=plan-a
 ```
+
+`/heights.json` returns the edited surface in `ellipsoid` and echoes back
+`scenario` / `scenarioRevision`, which makes it the quickest way to confirm a
+delta landed where you meant it to.
 
 Without `?scenario=` nothing changes — the request is byte-identical to upstream
 and shares the same cache entries.
@@ -104,7 +110,19 @@ bash scripts/upload-local-r2.sh \
   custom/plan-a/index.json=path/to/index.json
 
 npm run dev
-# http://localhost:8787/viewer?scenario=plan-a
+# The bundled viewer points at the page's own origin when served from
+# localhost, so this exercises the local worker:
+#   http://localhost:8787/viewer?scenario=plan-a
+# `?origin=` overrides the target explicitly.
+```
+
+Verify numerically before trusting the render:
+
+```bash
+curl -s "http://localhost:8787/heights.json?points=138.73,35.37" | jq .results
+curl -s "http://localhost:8787/heights.json?points=138.73,35.37&scenario=plan-a" | jq .results
+# `ellipsoid` should differ by exactly your delta; `elevation` and `geoid`
+# must be identical between the two.
 ```
 
 `REMOTE=1` on the same script targets the production bucket.
