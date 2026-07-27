@@ -12,6 +12,7 @@
 import type { DemSource, DemTile } from "./dem.js";
 import { openCog } from "./cog.js";
 import { lonLatBoundsToPixelWindow, type LonLatBounds } from "./tile.js";
+import { sampleCustomDelta, type ResolvedCustomDem } from "./custom-dem.js";
 import type { Tileset } from "./tilesets.js";
 
 /** Grid size handed to the WASM mesh encoder. Must match MESH_GRID_SIZE in Rust (65). */
@@ -98,6 +99,13 @@ export interface SampleGridOptions {
    * physical positions in their halos, so the seam normals match.
    */
   haloCells?: number;
+  /**
+   * Authored elevation delta to overlay (see `custom-dem.ts`). Applied to the
+   * `ellipsoid` data type only, and to the halo grid as well — otherwise the
+   * gradient normals along an edit boundary would be computed from
+   * un-edited halo samples and the seam would light differently.
+   */
+  custom?: ResolvedCustomDem | null;
 }
 
 export async function sampleGrid(
@@ -149,11 +157,34 @@ export async function sampleGrid(
     }
   }
 
+  // Custom DEM goes last, on the summed ellipsoid grid — the delta is
+  // datum-free so no geoid bookkeeping is needed. `dem` is left alone: it
+  // feeds the water-mask threshold, which is about the natural sea surface,
+  // not the edited surface.
+  if (opts.custom && dataType === "ellipsoid") {
+    await addCustomDelta(env.R2, opts.custom, bounds, size, elevations);
+    if (elevationsWithHalo) {
+      await addCustomDelta(env.R2, opts.custom, haloBounds, haloSize, elevationsWithHalo);
+    }
+  }
+
   return {
     elevations,
     dem: demGrid,
     ...(elevationsWithHalo ? { elevationsWithHalo, haloCells } : {}),
   };
+}
+
+async function addCustomDelta(
+  bucket: R2Bucket,
+  custom: ResolvedCustomDem,
+  bounds: GeodeticBounds,
+  size: number,
+  target: Float64Array,
+): Promise<void> {
+  const delta = await sampleCustomDelta(bucket, custom, bounds, size);
+  if (!delta) return;
+  for (let i = 0; i < target.length; i++) target[i] = target[i]! + delta[i]!;
 }
 
 function expandBounds(
