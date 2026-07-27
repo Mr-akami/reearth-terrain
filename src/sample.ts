@@ -4,7 +4,7 @@
 // generation), but optimized for arbitrary sparse points:
 //
 //   - DEM samples are grouped by their containing Web Mercator tile at
-//     `tileset.maxZoom`, so each unique tile is fetched once. Tiles that
+//     the DEM's max zoom, so each unique tile is fetched once. Tiles that
 //     are missing at the requested zoom retry one zoom coarser, mirroring
 //     the cascade in `sampleGrid`.
 //   - Geoid samples come from a single shared COG that's already memoized
@@ -19,7 +19,7 @@
 import type { DemSource, DemTile } from "./dem.js";
 import { openCog } from "./cog.js";
 import { sampleCustomDeltaAtPoints, type ResolvedCustomDem } from "./custom-dem.js";
-import type { Tileset } from "./tilesets.js";
+import { resolveDemMaxZoom, type Tileset } from "./tilesets.js";
 
 export interface SamplePoint {
   lon: number;
@@ -42,7 +42,7 @@ export async function samplePointHeights(
   opts: { custom?: ResolvedCustomDem | null } = {},
 ): Promise<PointHeights[]> {
   const [dem, geoid, delta] = await Promise.all([
-    sampleDemAtPoints(tileset.dem, points, tileset.maxZoom),
+    sampleDemAtPoints(tileset.dem, points, resolveDemMaxZoom(tileset)),
     sampleGeoidAtPoints(env.R2, tileset.geoidKey, points),
     opts.custom
       ? sampleCustomDeltaAtPoints(env.R2, opts.custom, points)
