@@ -587,7 +587,7 @@ async function serveMesh(
         bounds.south,
         bounds.east,
         bounds.north,
-        meshMaxErrorForZoom(z),
+        meshMaxErrorForZoom(z, custom !== null),
         0, // raw bytes — workerd / Cloudflare handle wire compression
         includeNormals,
         waterMaskBytes,
@@ -632,10 +632,25 @@ function parseExtensionsFromAccept(accept: string | null): string[] {
   return out;
 }
 
-/** Cesium expects coarser meshes at lower zoom; tighten the error budget as z grows. */
-function meshMaxErrorForZoom(z: number): number {
-  // 1000m at z=0, halving roughly per level, floored at 1m.
-  return Math.max(1, 1000 / 2 ** z);
+/**
+ * Simplification budget handed to the mesh encoder.
+ *
+ * 1000 m at z=0, halving per level. The floor matters more than the curve: from
+ * about z=10 up it is the only term.
+ *
+ * A 1 m floor is right for base terrain — it is well under the DEM's own
+ * resolution, so nothing real is lost — but it silently erases small
+ * earthworks. A 1 t pile of `dirt_1` is ~1.1 m across and ~0.8 m tall, i.e.
+ * *below* a 1 m error budget, so the encoder would simplify it away even at
+ * z=18 where the grid resolves it. Tiles carrying a custom-DEM delta therefore
+ * get a much finer floor.
+ *
+ * Scoped to edited tiles on purpose: lowering the floor globally would densify
+ * every high-zoom tile on the planet for no gain, since the base DEM has no
+ * sub-metre detail to preserve.
+ */
+function meshMaxErrorForZoom(z: number, hasCustomDem = false): number {
+  return Math.max(hasCustomDem ? 0.05 : 1, 1000 / 2 ** z);
 }
 
 async function meshLayerJson(

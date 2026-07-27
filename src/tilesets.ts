@@ -62,7 +62,30 @@ export interface Tileset {
   /** Optional Protomaps-derived watermask source. */
   watermask?: WatermaskSource;
   minZoom: number;
+  /**
+   * Deepest level advertised in `layer.json` / TileJSON — i.e. how far a client
+   * may zoom before Cesium stops asking for tiles.
+   *
+   * Intentionally deeper than the base DEM can resolve. Beyond the DEM's own
+   * limit the base terrain is just a smooth upsample, but a custom-DEM delta
+   * (`custom/{scenario}/`) carries its own resolution and *does* gain detail —
+   * so a small earthwork only becomes visible at these levels. Raising this is
+   * what lets a 1 t pile (≈1.1 m radius) render at all: at z=14 one mesh vertex
+   * spans ~16 m, which is far wider than the pile.
+   */
   maxZoom: number;
+  /**
+   * Deepest Web Mercator zoom to read the base DEM at. Separate from `maxZoom`
+   * because that one is a serving depth: clamping DEM reads to the provider's
+   * real coverage keeps `sampleDem` from walking down from a level the source
+   * was never going to have. Defaults to 14 (Mapterhorn).
+   */
+  demMaxZoom?: number;
+}
+
+/** Deepest WM zoom to read the base DEM at. See `Tileset.demMaxZoom`. */
+export function resolveDemMaxZoom(tileset: Tileset): number {
+  return tileset.demMaxZoom ?? 14;
 }
 
 const upstreamMapterhorn = new MapterhornSource();
@@ -120,7 +143,11 @@ const MAPTERHORN_EGM08: Tileset = {
   geoidKey: "sources/egm08_cog.tif",
   watermask: PROTOMAPS_WATERMASK,
   minZoom: 0,
-  maxZoom: 14,
+  // Serving depth. The base DEM stops resolving at 14 (`demMaxZoom`); levels
+  // 15-18 exist so custom-DEM edits are renderable — z=18 is ~1 m per mesh
+  // vertex against ~16 m at z=14.
+  maxZoom: 18,
+  demMaxZoom: 14,
 };
 
 export const TILESETS: Record<string, Tileset> = {

@@ -13,7 +13,7 @@ import type { DemSource, DemTile } from "./dem.js";
 import { openCog } from "./cog.js";
 import { lonLatBoundsToPixelWindow, type LonLatBounds } from "./tile.js";
 import { sampleCustomDelta, type ResolvedCustomDem } from "./custom-dem.js";
-import type { Tileset } from "./tilesets.js";
+import { resolveDemMaxZoom, type Tileset } from "./tilesets.js";
 
 /** Grid size handed to the WASM mesh encoder. Must match MESH_GRID_SIZE in Rust (65). */
 export const MESH_GRID_SIZE = 65;
@@ -125,10 +125,10 @@ export async function sampleGrid(
   // different DEM zoom than the no-halo path — keeps cached tiles
   // byte-stable across the feature flip.
   const [demGrid, demGridHalo, geoidGrid, geoidGridHalo] = await Promise.all([
-    dataType === "geoid" ? null : sampleDem(tileset.dem, bounds, size, tileset.maxZoom),
+    dataType === "geoid" ? null : sampleDem(tileset.dem, bounds, size, resolveDemMaxZoom(tileset)),
     dataType === "geoid" || haloCells === 0
       ? null
-      : sampleDem(tileset.dem, haloBounds, haloSize, tileset.maxZoom, bounds),
+      : sampleDem(tileset.dem, haloBounds, haloSize, resolveDemMaxZoom(tileset), bounds),
     dataType === "elevation" ? null : sampleGeoid(env.R2, tileset.geoidKey, bounds, size),
     dataType === "elevation" || haloCells === 0
       ? null
