@@ -20,7 +20,7 @@ import {
   type Tileset,
 } from "./tilesets.js";
 import { cachedTile, bodyEtag, matchesIfNoneMatch } from "./cache.js";
-import { loadCustomDem, isValidScenario, customCacheVariant } from "./custom-dem.js";
+import { loadCustomDem, isValidScenario, customCacheVariant, indexTtlMs } from "./custom-dem.js";
 import { meshCacheVersion } from "./cache-patches.js";
 import { runCleanup } from "./cleanup.js";
 import {
@@ -384,7 +384,8 @@ async function serveTile(
   if (scenario && !isValidScenario(scenario)) {
     return json({ error: "invalid ?scenario= (allowed: A-Z a-z 0-9 . _ -, max 64)" }, { status: 400 });
   }
-  const custom = dataType === "ellipsoid" ? await loadCustomDem(env.R2, scenario) : null;
+  const custom =
+    dataType === "ellipsoid" ? await loadCustomDem(env.R2, scenario, indexTtlMs(env)) : null;
 
   return cachedTile(
     req,
@@ -519,7 +520,8 @@ async function serveMesh(
   if (scenario && !isValidScenario(scenario)) {
     return json({ error: "invalid ?scenario= (allowed: A-Z a-z 0-9 . _ -, max 64)" }, { status: 400 });
   }
-  const custom = dataType === "ellipsoid" ? await loadCustomDem(env.R2, scenario) : null;
+  const custom =
+    dataType === "ellipsoid" ? await loadCustomDem(env.R2, scenario, indexTtlMs(env)) : null;
 
   const variant: string[] = [];
   if (includeNormals) variant.push("n");
@@ -744,7 +746,7 @@ async function serveHeights(
   if (scenario && !isValidScenario(scenario)) {
     return json({ error: "invalid ?scenario= (allowed: A-Z a-z 0-9 . _ -, max 64)" }, { status: 400 });
   }
-  const custom = await loadCustomDem(env.R2, scenario);
+  const custom = await loadCustomDem(env.R2, scenario, indexTtlMs(env));
 
   const heights = await samplePointHeights(tileset, points, env, { custom });
   return metadataJson(
