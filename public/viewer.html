@@ -483,6 +483,35 @@
       const DEMO = QUERY.has("demo");
       const PLATEAU = QUERY.has("plateau");
 
+      // Terrain origin. Defaults to the production service, but falls back to
+      // the page's own origin when served locally so `wrangler dev` actually
+      // exercises the local worker instead of silently hitting production.
+      // `?origin=` overrides either way (e.g. pointing the deployed viewer at
+      // a preview deployment).
+      const TERRAIN_ORIGIN = (() => {
+        const override = QUERY.get("origin");
+        if (override) return override.replace(/\/$/, "");
+        const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+        return local ? location.origin : "https://terrain.reearth.land";
+      })();
+
+      // ?scenario= selects a custom-DEM overlay (see docs/custom-dem.md). It
+      // is appended to every terrain request; the tile service ignores the
+      // parameter when no such scenario exists, so a typo degrades to base
+      // terrain rather than erroring.
+      const SCENARIO = QUERY.get("scenario");
+
+      /**
+       * Build a terrain URL. `path` may contain `{z}/{x}/{y}` placeholders —
+       * the scenario is appended as a query parameter, which keeps those
+       * placeholders in the path segment where every renderer expects them.
+       */
+      function terrainUrl(path) {
+        const url = `${TERRAIN_ORIGIN}${path}`;
+        if (!SCENARIO) return url;
+        return `${url}${url.includes("?") ? "&" : "?"}scenario=${encodeURIComponent(SCENARIO)}`;
+      }
+
       // Demo orbit framing for Navara. lng/lat MUST be the Mt Fuji
       // summit: the orbit spins the heading around this point, so an
       // off-summit target makes the mountain swing around lopsidedly.
@@ -753,7 +782,7 @@
             },
             dem: {
               type: "raster-dem",
-              url: `${"https://terrain.reearth.land"}/terrarium/elevation/tilejson.json`,
+              url: terrainUrl("/terrarium/elevation/tilejson.json"),
               encoding: "terrarium",
               // The TileJSON also advertises this, but MapLibre's
               // raster-dem source doesn't reliably surface it through
@@ -844,14 +873,14 @@
         // terrain layer at the terrarium raster-dem instead.
         navaraQmSource = navaraView.addSource({
           type: "quantized-mesh",
-          url: `${"https://terrain.reearth.land"}/cesium-mesh/${dt}/{z}/{x}/{y}.terrain`,
+          url: terrainUrl(`/cesium-mesh/${dt}/{z}/{x}/{y}.terrain`),
           maxZoom: 18,
           requestVertexNormals: normals,
           requestWaterMask: watermask,
         });
         navaraDemSource = navaraView.addSource({
           type: "raster-dem",
-          url: `${"https://terrain.reearth.land"}/terrarium/${dt}/{z}/{x}/{y}.png`,
+          url: terrainUrl(`/terrarium/${dt}/{z}/{x}/{y}.png`),
           maxZoom: 15,
           minZoom: 5,
           tileSize: 512,
@@ -929,13 +958,13 @@
         const { normals, watermask, dt } = params();
         navaraQmSource?.update({
           type: "quantized-mesh",
-          url: `${"https://terrain.reearth.land"}/cesium-mesh/${dt}/{z}/{x}/{y}.terrain`,
+          url: terrainUrl(`/cesium-mesh/${dt}/{z}/{x}/{y}.terrain`),
           requestVertexNormals: normals,
           requestWaterMask: watermask,
         });
         navaraDemSource?.update({
           type: "raster-dem",
-          url: `${"https://terrain.reearth.land"}/terrarium/${dt}/{z}/{x}/{y}.png`,
+          url: terrainUrl(`/terrarium/${dt}/{z}/{x}/{y}.png`),
         });
       }
 
@@ -955,7 +984,7 @@
             return;
           }
           const terrain = await Cesium.CesiumTerrainProvider.fromUrl(
-            `${"https://terrain.reearth.land"}/cesium-mesh/${dt}`,
+            terrainUrl(`/cesium-mesh/${dt}`),
             {
               requestVertexNormals: normals,
               requestWaterMask: watermask,

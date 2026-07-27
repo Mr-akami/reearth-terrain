@@ -18,6 +18,7 @@
 
 import type { DemSource, DemTile } from "./dem.js";
 import { openCog } from "./cog.js";
+import { sampleCustomDeltaAtPoints, type ResolvedCustomDem } from "./custom-dem.js";
 import type { Tileset } from "./tilesets.js";
 
 export interface SamplePoint {
@@ -38,20 +39,27 @@ export async function samplePointHeights(
   tileset: Tileset,
   points: SamplePoint[],
   env: { R2: R2Bucket },
+  opts: { custom?: ResolvedCustomDem | null } = {},
 ): Promise<PointHeights[]> {
-  const [dem, geoid] = await Promise.all([
+  const [dem, geoid, delta] = await Promise.all([
     sampleDemAtPoints(tileset.dem, points, tileset.maxZoom),
     sampleGeoidAtPoints(env.R2, tileset.geoidKey, points),
+    opts.custom
+      ? sampleCustomDeltaAtPoints(env.R2, opts.custom, points)
+      : Promise.resolve(null),
   ]);
 
   const out: PointHeights[] = new Array(points.length);
   for (let i = 0; i < points.length; i++) {
     const e = dem[i];
     const g = geoid[i];
+    // Custom DEM applies to `ellipsoid` only, matching the tile paths:
+    // `elevation` and `geoid` stay pure views of the upstream data.
+    const base = e != null && g != null ? e + g : null;
     out[i] = {
       elevation: e ?? null,
       geoid: g ?? null,
-      ellipsoid: e != null && g != null ? e + g : null,
+      ellipsoid: base != null ? base + (delta?.[i] ?? 0) : null,
     };
   }
   return out;

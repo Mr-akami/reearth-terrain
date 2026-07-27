@@ -725,12 +725,19 @@ async function serveHeights(
       { status: 400 },
     );
   }
-  const heights = await samplePointHeights(tileset, points, env);
+  const scenario = query.get("scenario");
+  if (scenario && !isValidScenario(scenario)) {
+    return json({ error: "invalid ?scenario= (allowed: A-Z a-z 0-9 . _ -, max 64)" }, { status: 400 });
+  }
+  const custom = await loadCustomDem(env.R2, scenario);
+
+  const heights = await samplePointHeights(tileset, points, env, { custom });
   return metadataJson(
     req,
     {
       tileset: tileset.name,
       version: resolveTilesetVersion(tileset),
+      ...(custom ? { scenario, scenarioRevision: custom.revision } : {}),
       results: points.map((p, i) => ({
         lon: p.lon,
         lat: p.lat,
