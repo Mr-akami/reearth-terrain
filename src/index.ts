@@ -20,7 +20,13 @@ import {
   type Tileset,
 } from "./tilesets.js";
 import { cachedTile, bodyEtag, matchesIfNoneMatch } from "./cache.js";
-import { loadCustomDem, isValidScenario, customCacheVariant, indexTtlMs } from "./custom-dem.js";
+import {
+  loadCustomDem,
+  isValidScenario,
+  customCacheVariant,
+  indexTtlMs,
+  entryOverlapsTile,
+} from "./custom-dem.js";
 import { meshCacheVersion } from "./cache-patches.js";
 import { runCleanup } from "./cleanup.js";
 import {
@@ -589,7 +595,7 @@ async function serveMesh(
         bounds.south,
         bounds.east,
         bounds.north,
-        meshMaxErrorForZoom(z, custom !== null),
+        meshMaxErrorForZoom(z, custom !== null && entryOverlapsTile(custom, bounds)),
         0, // raw bytes — workerd / Cloudflare handle wire compression
         includeNormals,
         waterMaskBytes,

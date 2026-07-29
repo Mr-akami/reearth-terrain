@@ -223,6 +223,17 @@ function writeCache(bucket: R2Bucket, scenario: string, value: ResolvedCustomDem
 // --- sampling ---
 
 /**
+ * True when any entry's coarse bounds overlap `bounds` — i.e. this tile is
+ * one the custom DEM actually touches, not just "the scenario has some
+ * custom DEM somewhere". Callers that scope a decision to "edited tiles"
+ * (e.g. the mesh simplification error budget) must use this, not a bare
+ * `custom !== null` check.
+ */
+export function entryOverlapsTile(custom: ResolvedCustomDem, bounds: LonLatBounds): boolean {
+  return custom.entries.some((e) => intersects(e.bounds, bounds));
+}
+
+/**
  * Sample the summed delta for `bounds` onto a `size`×`size` grid.
  *
  * Grid layout matches `sampleGrid` / `readTileSamples`: row-major,
