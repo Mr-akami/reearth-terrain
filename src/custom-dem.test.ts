@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import {
   customCacheVariant,
+  entryOverlapsTile,
   indexTtlMs,
   featherWeight,
   isValidScenario,
@@ -253,6 +254,24 @@ describe("loadCustomDem", () => {
     expect(resolved!.revision).toBeTruthy();
     const head = await env.R2.head("custom/etag-rev/index.json");
     expect(resolved!.revision).toBe(head!.etag);
+  });
+});
+
+describe("entryOverlapsTile", () => {
+  it("is false when the scenario has entries but none touch this tile", () => {
+    const custom: ResolvedCustomDem = {
+      revision: "r1",
+      entries: [{ key: "far.tif", bounds: [100, 30, 101, 31], featherMeters: 0 }],
+    };
+    expect(entryOverlapsTile(custom, { west: 0, south: 0, east: 1, north: 1 })).toBe(false);
+  });
+
+  it("is true when an entry's bounds overlap this tile", () => {
+    const custom: ResolvedCustomDem = {
+      revision: "r1",
+      entries: [{ key: "here.tif", bounds: [0.25, 0.25, 0.75, 0.75], featherMeters: 0 }],
+    };
+    expect(entryOverlapsTile(custom, { west: 0, south: 0, east: 1, north: 1 })).toBe(true);
   });
 });
 
